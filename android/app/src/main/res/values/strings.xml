@@ -1,0 +1,5 @@
+<resources>
+    <string moduleConfig="true" name="reactNativeCodePush_androidDeploymentKey">b3uELveDmD10hJXNZsVvWka5nzW64ksvOXqog</string>
+     <string moduleConfig="true" name="reactNativeCodePush_url">http://47.106.153.116:3000</string>
+    <string name="app_name">百灵鸟</string>
+</resources>

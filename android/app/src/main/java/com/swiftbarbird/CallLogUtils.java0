@@ -1,0 +1,130 @@
+// package com.swiftbarbird;
+import android.Manifest;
+import android.app.Activity;
+import android.content.AsyncQueryHandler;
+import android.content.ContentResolver;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.net.Uri;
+import android.provider.CallLog;
+import android.support.v4.app.ActivityCompat;
+import com.google.gson.Gson;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
+/**
+ * Created by fengpeihao on 2017/8/23.
+ * 读取手机通话记录工具类
+ */
+
+public class CallLogUtils {
+
+    private static CallLogUtils mCallLogUtils;
+    private OnCallLogListener mListener;
+
+    public static CallLogUtils with() {
+        if (mCallLogUtils == null) {
+            synchronized (ContactUtils.class) {
+                mCallLogUtils = new CallLogUtils();
+            }
+        }
+        return mCallLogUtils;
+    }
+
+    public void getCallLogs(Activity activity, OnCallLogListener listener) {
+        mListener = listener;
+        if (ActivityCompat.checkSelfPermission(activity, Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
+            if (mListener != null) mListener.onFailed();
+            return;
+        }
+        MyAsyncQueryhandler asyncQueryHandler = new MyAsyncQueryhandler(activity.getContentResolver());
+        Uri uri = CallLog.Calls.CONTENT_URI;
+        String[] projection = {"name", "number", "type", "date", "duration"};
+        asyncQueryHandler.startQuery(0, null, uri, projection, null, null,
+                CallLog.Calls.DEFAULT_SORT_ORDER);
+    }
+
+    private String getType(String type) {
+        switch (type) {  //呼入1/呼出2/未接3
+            case "1":
+                return "呼入";
+            case "2":
+                return "呼出";
+            case "3":
+                return "未接";
+            default:
+                return "";
+        }
+    }
+
+    private String getDate(String date) {
+        Date callDate = new Date(Long.parseLong(date));
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        return sdf.format(callDate);
+    }
+
+    private String getDuration(String duration) {
+        int callDuration = NumberUtils.getInteger(duration);
+        if (callDuration <= 0) return "00:00:00";
+        int h = callDuration / 3600;
+        int m = callDuration % 3600 / 60;
+        int s = callDuration % 60;
+        String hour = h + "";
+        String min = m + "";
+        String sec = s + "";
+        if (h < 10) {
+            hour = "0" + h;
+        }
+        if (m < 10) {
+            min = "0" + m;
+        }
+        if (s < 10) {
+            sec = "0" + s;
+        }
+        return hour + ":" + min + ":" + sec;
+    }
+    public class CallLogBean {
+        public CallLogBean(String date, String callNumber, String callName, String duration, String callType ) {
+            this.date = date;
+            this.callNumber = callNumber;
+            this.callName = callName;
+            this.duration = duration;
+            this.callType = callType;
+        }
+        private String date;
+        private String callNumber;
+        private String callName;
+        private String duration;
+        private String callType;
+    }
+    private class MyAsyncQueryhandler extends AsyncQueryHandler {
+        public MyAsyncQueryhandler(ContentResolver cr) {
+            super(cr);
+        }
+
+        @Override
+        protected void onQueryComplete(int token, Object cookie, Cursor cursor) {
+            if (cursor != null && cursor.getCount() > 0) {
+                List<CallLogBean> list = new ArrayList<>();
+                while (cursor.moveToNext()) {
+                    String callName = cursor.getString(cursor.getColumnIndex("name"));//姓名
+                    String callNumber = cursor.getString(cursor.getColumnIndex("number"));//电话号码（在手机通讯录则有名字，不在则为null）
+                    String callType = cursor.getString(cursor.getColumnIndex("type"));//通话类型 1 呼入 2 呼出 3 未接
+                    String date = getDate(cursor.getString(cursor.getColumnIndex("date")));//拨打时间
+                    String duration = getDuration(cursor.getString(cursor.getColumnIndex("duration")));//通话时长
+                    CallLogBean callLogBean = new CallLogBean(date, callNumber, callName, duration, callType);
+                    list.add(callLogBean);
+                }
+                Gson gson = new Gson();
+                mListener.onSuccess(gson.toJson(list));
+            } else {
+                if (mListener != null)
+                    mListener.onFailed();
+            }
+            super.onQueryComplete(token, cookie, cursor);
+        }
+    }
+}
